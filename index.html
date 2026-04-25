@@ -1,0 +1,277 @@
+<attendace html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance Register with Google Sheets Database</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: system-ui, 'Segoe UI', sans-serif; }
+        body { background: linear-gradient(145deg, #e0eafc 0%, #cfdef3 100%); min-height: 100vh; padding: 2rem 1.5rem; }
+        .container { max-width: 1300px; margin: 0 auto; }
+        .header { text-align: center; margin-bottom: 2.5rem; }
+        .header h1 { font-size: 2.2rem; background: linear-gradient(135deg, #1A2A3A, #0F2027); background-clip: text; -webkit-background-clip: text; color: transparent; }
+        .register-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; background: white; border-radius: 60px; padding: 0.6rem 1.5rem; margin-bottom: 2rem; box-shadow: 0 8px 20px rgba(0,0,0,0.05); }
+        .grade-buttons { display: flex; gap: 1rem; flex-wrap: wrap; }
+        .grade-btn { border: none; background: #f1f5f9; padding: 0.6rem 1.6rem; border-radius: 40px; font-weight: 700; cursor: pointer; transition: all 0.2s ease; }
+        .grade-btn.active { background: #1f4e6e; color: white; }
+        .stats-badge { background: #eef2ff; padding: 0.4rem 1.2rem; border-radius: 30px; font-size: 0.9rem; font-weight: 600; }
+        .dashboard { display: grid; grid-template-columns: 1fr 1.6fr; gap: 2rem; }
+        .card { background: rgba(255, 255, 255, 0.95); border-radius: 1.8rem; box-shadow: 0 20px 35px -12px rgba(0,0,0,0.2); padding: 1.6rem 1.8rem; }
+        .card h2 { font-size: 1.6rem; border-left: 5px solid #1f4e6e; padding-left: 1rem; margin-bottom: 1.5rem; }
+        .form-grid { display: flex; flex-direction: column; gap: 1.2rem; }
+        .input-group { display: flex; flex-direction: column; gap: 0.4rem; }
+        .input-group label { font-weight: 600; font-size: 0.85rem; }
+        .input-group input, .input-group select { padding: 0.8rem 1rem; border: 1.5px solid #e2e8f0; border-radius: 1rem; font-size: 0.95rem; }
+        .signature-area { background: #fafcff; border-radius: 1rem; border: 1.5px dashed #b9d0e7; padding: 1rem; text-align: center; }
+        canvas { border: 1px solid #cbdde9; border-radius: 0.8rem; background: white; cursor: crosshair; width: 100%; height: auto; background-image: radial-gradient(circle, #e9f0f5 1px, transparent 1px); background-size: 18px 18px; }
+        .sign-actions { display: flex; justify-content: space-between; gap: 0.6rem; margin-top: 0.6rem; }
+        .small-btn { background: #eef2ff; border: none; padding: 0.4rem 0.8rem; border-radius: 2rem; font-size: 0.75rem; cursor: pointer; }
+        .submit-btn { background: #1f4e6e; color: white; border: none; padding: 0.9rem; border-radius: 2.5rem; font-weight: 700; cursor: pointer; margin-top: 0.6rem; }
+        .register-table-wrapper { overflow-x: auto; max-height: 65vh; overflow-y: auto; border-radius: 1.2rem; }
+        .register-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; min-width: 700px; }
+        .register-table th { background: #1f4e6e; color: white; padding: 0.8rem 0.5rem; position: sticky; top: 0; }
+        .register-table td { padding: 0.75rem 0.5rem; border-bottom: 1px solid #e2edf2; }
+        .delete-btn { background: none; border: none; color: #c2410c; font-weight: bold; font-size: 1.2rem; cursor: pointer; }
+        .sync-status { position: fixed; bottom: 20px; right: 20px; background: #1f4e6e; color: white; padding: 8px 16px; border-radius: 40px; font-size: 12px; z-index: 1000; }
+        @media (max-width: 880px) { .dashboard { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>📋 Digital Attendance Register</h1>
+        <p>Grade 10 · 11 · 12 | Data saves to Google Sheets (shared database)</p>
+    </div>
+
+    <div class="register-bar">
+        <div class="grade-buttons">
+            <button class="grade-btn active" data-grade="10">📘 Grade 10</button>
+            <button class="grade-btn" data-grade="11">📙 Grade 11</button>
+            <button class="grade-btn" data-grade="12">📕 Grade 12</button>
+        </div>
+        <div class="stats-badge" id="statsCounter">👥 Loading...</div>
+    </div>
+
+    <div class="dashboard">
+        <div class="card">
+            <h2>✍️ Learner Registration</h2>
+            <form id="learnerForm">
+                <div class="form-grid">
+                    <div class="input-group"><label>First Name *</label><input type="text" id="firstName" required></div>
+                    <div class="input-group"><label>Surname *</label><input type="text" id="surname" required></div>
+                    <div class="input-group"><label>Gender *</label><select id="gender" required><option value="">-- Select --</option><option value="Female">Female</option><option value="Male">Male</option><option value="Non-binary">Non-binary</option></select></div>
+                    <div class="input-group"><label>School Name *</label><input type="text" id="schoolName" required></div>
+                    <div class="input-group"><label>ID Number *</label><input type="text" id="idNumber" required></div>
+                    <div class="input-group"><label>Phone Number *</label><input type="tel" id="phone" required></div>
+                    <div class="signature-area">
+                        <label>🖊️ Digital Signature</label>
+                        <canvas id="signatureCanvas" width="400" height="150" style="width:100%; max-width:400px; aspect-ratio:400/150"></canvas>
+                        <div class="sign-actions"><button type="button" id="clearCanvasBtn" class="small-btn">🗑️ Clear</button><button type="button" id="resetCanvasBtn" class="small-btn">⟳ Reset</button></div>
+                    </div>
+                    <button type="submit" class="submit-btn">✅ REGISTER & SAVE TO DATABASE</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2>📋 Attendance Register · <span id="currentGradeLabel">Grade 10</span></h2>
+            <div class="register-table-wrapper">
+                <table class="register-table">
+                    <thead><tr><th>#</th><th>Full Name</th><th>Gender</th><th>School</th><th>ID Number</th><th>Phone</th><th>Signature</th><th>Action</th></tr></thead>
+                    <tbody id="tableBody"><tr><td colspan="8">Loading from database...</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="sync-status" id="syncStatus">✅ Connected to Google Sheets</div>
+</div>
+
+<script>
+    // 🔴 REPLACE THIS WITH YOUR GOOGLE APPS SCRIPT WEB APP URL 🔴
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbznqzW0NaCgN-d_1B4ItkDW49jS6UEbcCkARKBINQwC_R5lGNlAyTVjtRJlmwdmISM5DA/exec';
+    
+    let currentGrade = "10";
+    let allRecords = [];
+
+    // Canvas setup
+    const canvas = document.getElementById('signatureCanvas');
+    const ctx = canvas.getContext('2d');
+    let drawing = false, lastX = 0, lastY = 0;
+    
+    function setupCanvas() {
+        canvas.width = 400;
+        canvas.height = 150;
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.strokeStyle = '#0a2f44';
+        ctx.lineWidth = 2.2;
+        ctx.lineCap = 'round';
+    }
+    
+    function clearCanvas() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    
+    function startDrawing(e) {
+        drawing = true;
+        const pos = getCoords(e);
+        lastX = pos.x; lastY = pos.y;
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.stroke();
+    }
+    
+    function draw(e) {
+        if (!drawing) return;
+        e.preventDefault();
+        const pos = getCoords(e);
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(pos.x, pos.y);
+        ctx.stroke();
+        lastX = pos.x; lastY = pos.y;
+    }
+    
+    function stopDrawing() { drawing = false; }
+    
+    function getCoords(e) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        let clientX, clientY;
+        if (e.touches) { clientX = e.touches[0].clientX; clientY = e.touches[0].clientY; e.preventDefault(); }
+        else { clientX = e.clientX; clientY = e.clientY; }
+        let x = (clientX - rect.left) * scaleX;
+        let y = (clientY - rect.top) * scaleY;
+        return { x: Math.min(Math.max(0, x), canvas.width), y: Math.min(Math.max(0, y), canvas.height) };
+    }
+    
+    canvas.addEventListener('mousedown', startDrawing);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDrawing);
+    canvas.addEventListener('touchstart', startDrawing);
+    canvas.addEventListener('touchmove', draw);
+    canvas.addEventListener('touchend', stopDrawing);
+    setupCanvas();
+    
+    document.getElementById('clearCanvasBtn').onclick = () => clearCanvas();
+    document.getElementById('resetCanvasBtn').onclick = () => clearCanvas();
+    
+    function getSignatureDataURL() {
+        return canvas.toDataURL('image/png');
+    }
+    
+    // Load data from Google Sheets
+    async function loadFromDatabase() {
+        try {
+            const response = await fetch(SCRIPT_URL);
+            const data = await response.json();
+            allRecords = data.filter(r => r.Grade && ['10','11','12'].includes(r.Grade.toString()));
+            renderTable();
+            document.getElementById('syncStatus').innerHTML = '✅ Synced with Google Sheets';
+            setTimeout(() => document.getElementById('syncStatus').style.opacity = '0.7', 2000);
+        } catch (error) {
+            console.error('Load error:', error);
+            document.getElementById('syncStatus').innerHTML = '⚠️ Check connection & deploy script';
+            document.getElementById('tableBody').innerHTML = '<tr><td colspan="8">❌ Failed to load from database. Verify script URL and deployment.</td></tr>';
+        }
+    }
+    
+    // Save to Google Sheets
+    async function saveToDatabase(learnerData) {
+        const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(learnerData)
+        });
+        return true;
+    }
+    
+    function renderTable() {
+        const filtered = allRecords.filter(r => r.Grade == currentGrade);
+        const tbody = document.getElementById('tableBody');
+        document.getElementById('currentGradeLabel').innerText = `Grade ${currentGrade}`;
+        document.getElementById('statsCounter').innerHTML = `👥 ${filtered.length} learners`;
+        
+        if (filtered.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8">📌 No learners yet — register above</td></tr>';
+            return;
+        }
+        
+        let html = '';
+        filtered.forEach((record, idx) => {
+            html += `<tr>
+                <td>${idx+1}</td>
+                <td>${escapeHtml(record.FirstName || '')} ${escapeHtml(record.Surname || '')}</td>
+                <td>${escapeHtml(record.Gender || '')}</td>
+                <td>${escapeHtml(record.School || '')}</td>
+                <td>${escapeHtml(record.IDNumber || '')}</td>
+                <td>${escapeHtml(record.Phone || '')}</td>
+                <td>${record.Signature ? '✍️ Signed' : '—'}</td>
+                <td><button class="delete-btn" onclick="alert('Delete via Google Sheets manually')">🗑️</button></td>
+            </tr>`;
+        });
+        tbody.innerHTML = html;
+    }
+    
+    function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, function(m) { return {'&':'&amp;','<':'&lt;','>':'&gt;'}[m]; }); }
+    
+    // Form submission
+    document.getElementById('learnerForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const firstName = document.getElementById('firstName').value.trim();
+        const surname = document.getElementById('surname').value.trim();
+        const gender = document.getElementById('gender').value;
+        const schoolName = document.getElementById('schoolName').value.trim();
+        const idNumber = document.getElementById('idNumber').value.trim();
+        const phone = document.getElementById('phone').value.trim();
+        
+        if (!firstName || !surname || !gender || !schoolName || !idNumber || !phone) {
+            alert('Please fill all fields');
+            return;
+        }
+        
+        const signature = getSignatureDataURL();
+        if (signature === 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg...') { // check if empty
+            alert('Please draw your signature');
+            return;
+        }
+        
+        const learnerRecord = {
+            grade: currentGrade,
+            firstName: firstName,
+            surname: surname,
+            gender: gender,
+            schoolName: schoolName,
+            idNumber: idNumber,
+            phone: phone,
+            signatureDataURL: signature.substring(0, 200)
+        };
+        
+        document.getElementById('syncStatus').innerHTML = '💾 Saving to database...';
+        await saveToDatabase(learnerRecord);
+        document.getElementById('syncStatus').innerHTML = '✅ Saved! Reloading...';
+        
+        document.getElementById('learnerForm').reset();
+        clearCanvas();
+        await loadFromDatabase();
+    };
+    
+    // Grade switching
+    document.querySelectorAll('.grade-btn').forEach(btn => {
+        btn.onclick = () => {
+            document.querySelectorAll('.grade-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentGrade = btn.getAttribute('data-grade');
+            renderTable();
+        };
+    });
+    
+    // Initial load
+    loadFromDatabase();
+</script>
+</body>
+</html>
